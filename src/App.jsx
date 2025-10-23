@@ -94,13 +94,19 @@ export default function App() {
       return
     }
     const end = new Date()
-    const payload = {
-      level1, level2, level3,
-      start: new Date(startTime).toISOString(),
-      end: end.toISOString(),
-      duration_sec: Math.floor((end - startTime) / 1000),
-      userAgent: navigator.userAgent,
-    }
+const recordId = localStorage.getItem('recordId');
+
+const payload = {
+  level1,
+  level2,
+  level3,
+  start: new Date(startTime).toISOString(),
+  end: end.toISOString(),
+  duration_sec: Math.floor((end - startTime) / 1000),
+  recordId, // <--- diese Zeile neu
+  userAgent: navigator.userAgent,
+};
+
 
     try {
       setStatus('Sende an n8n …')
