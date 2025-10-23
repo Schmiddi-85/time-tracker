@@ -9,15 +9,16 @@ function classNames(...arr) {
 export default function App() {
   const [level1, setLevel1] = useState(localStorage.getItem('level1') || '')
   const [level2, setLevel2] = useState(localStorage.getItem('level2') || '')
-  const [level3, setLevel3] = useState('');
+  const [level3, setLevel3] = useState('')
   const [recentProjects, setRecentProjects] = useState(
     JSON.parse(localStorage.getItem('recentProjects') || '[]')
-  );
+  )
 
   const [startTime, setStartTime] = useState(null)
   const [elapsed, setElapsed] = useState(0)
   const [status, setStatus] = useState('')
   const [theme, setTheme] = useState('light')
+  const [recordId, setRecordId] = useState(localStorage.getItem('recordId') || '')
 
   useEffect(() => {
     let id
@@ -43,20 +44,20 @@ export default function App() {
 
   // ⏱ Start-Button-Handler
   const handleStart = async () => {
-    if (startTime) return; // Timer läuft bereits
+    if (startTime) return // Timer läuft bereits
 
-    const start = new Date();
-    setStartTime(start);
-    setStatus('');
+    const start = new Date()
+    setStartTime(start)
+    setStatus('')
 
     // Nur speichern, wenn Projektname vorhanden ist
     if (level3 && level3.trim().length > 0) {
       setRecentProjects((prev) => {
-        const cleaned = level3.trim();
-        const updated = [cleaned, ...prev.filter((p) => p !== cleaned)].slice(0, 10);
-        localStorage.setItem('recentProjects', JSON.stringify(updated));
-        return updated;
-      });
+        const cleaned = level3.trim()
+        const updated = [cleaned, ...prev.filter((p) => p !== cleaned)].slice(0, 10)
+        localStorage.setItem('recentProjects', JSON.stringify(updated))
+        return updated
+      })
     }
 
     // 📤 Direkt Webhook an n8n senden mit duration_sec: 0
@@ -67,24 +68,33 @@ export default function App() {
       start: start.toISOString(),
       end: null,
       duration_sec: 0,
-      deviceId: "macbook", // oder "iphone" später
+      deviceId: "macbook", // später evtl. "iphone"
       userAgent: navigator.userAgent,
-    };
+    }
 
     try {
-      if (!N8N_URL) throw new Error("Keine Webhook-URL gesetzt");
+      if (!N8N_URL) throw new Error("Keine Webhook-URL gesetzt")
       const res = await fetch(N8N_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      setStatus("Start an n8n gesendet ✅");
+      })
+      if (!res.ok) throw new Error("HTTP " + res.status)
+      const data = await res.json()
+      console.log("Antwort vom n8n:", data)
+
+      if (data.recordId) {
+        setRecordId(data.recordId)
+        localStorage.setItem('recordId', data.recordId)
+        setStatus(`✅ Neue Zeiterfassung gestartet (ID: ${data.recordId})`)
+      } else {
+        setStatus("⚠️ Keine Record-ID empfangen")
+      }
     } catch (e) {
-      console.error(e);
-      setStatus("Fehler beim Start senden ❌");
+      console.error(e)
+      setStatus("Fehler beim Start senden ❌")
     }
-  };
+  }
 
   const handleStop = async () => {
     if (!startTime) return
@@ -93,30 +103,36 @@ export default function App() {
       setStartTime(null)
       return
     }
+
     const end = new Date()
-const recordId = localStorage.getItem('recordId');
+    const recordIdStored = localStorage.getItem('recordId')
 
-const payload = {
-  level1,
-  level2,
-  level3,
-  start: new Date(startTime).toISOString(),
-  end: end.toISOString(),
-  duration_sec: Math.floor((end - startTime) / 1000),
-  recordId, // <--- diese Zeile neu
-  userAgent: navigator.userAgent,
-};
-
+    const payload = {
+      level1,
+      level2,
+      level3,
+      start: new Date(startTime).toISOString(),
+      end: end.toISOString(),
+      duration_sec: Math.floor((end - startTime) / 1000),
+      recordId: recordIdStored,
+      userAgent: navigator.userAgent,
+    }
 
     try {
       setStatus('Sende an n8n …')
       const res = await fetch(N8N_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error('HTTP ' + res.status)
-      setStatus('Erfolgreich gespeichert ✅')
+      const data = await res.json()
+      console.log("Antwort vom n8n:", data)
+      setStatus('✅ Zeiterfassung gestoppt und gespeichert')
+
+      // ID zurücksetzen
+      localStorage.removeItem('recordId')
+      setRecordId('')
       setLevel3('')
     } catch (e) {
       console.error(e)
@@ -127,8 +143,16 @@ const payload = {
   }
 
   const reset = () => {
-    setLevel1(''); setLevel2(''); setLevel3(''); setStartTime(null); setElapsed(0); setStatus('')
-    localStorage.removeItem('level1'); localStorage.removeItem('level2')
+    setLevel1('')
+    setLevel2('')
+    setLevel3('')
+    setStartTime(null)
+    setElapsed(0)
+    setStatus('')
+    setRecordId('')
+    localStorage.removeItem('level1')
+    localStorage.removeItem('level2')
+    localStorage.removeItem('recordId')
   }
 
   return (
@@ -152,7 +176,7 @@ const payload = {
           <label className="block text-sm">
             <span className="block mb-1">Ebene 1</span>
             <select className="w-full p-2 rounded-lg border"
-              value={level1} onChange={e=>setLevel1(e.target.value)}>
+              value={level1} onChange={e => setLevel1(e.target.value)}>
               <option value="">Bitte wählen …</option>
               <option>Homeoffice</option>
               <option>OnSite</option>
@@ -162,7 +186,7 @@ const payload = {
           <label className="block text-sm">
             <span className="block mb-1">Ebene 2</span>
             <select className="w-full p-2 rounded-lg border"
-              value={level2} onChange={e=>setLevel2(e.target.value)}>
+              value={level2} onChange={e => setLevel2(e.target.value)}>
               <option value="">Bitte wählen …</option>
               <option>Vertrieb</option>
               <option>Projekt-Extern</option>
@@ -215,6 +239,12 @@ const payload = {
         </section>
 
         {status && <p className="text-center mt-4 text-sm opacity-90">{status}</p>}
+
+        {recordId && (
+          <p className="text-center text-xs text-gray-500 mt-1">
+            Aktive Record-ID: <code>{recordId}</code>
+          </p>
+        )}
 
         <footer className="mt-6 text-xs text-center opacity-70">
           <p>Gesendet wird an: <code>VITE_N8N_WEBHOOK_URL</code> (per <code>.env.local</code>)</p>
