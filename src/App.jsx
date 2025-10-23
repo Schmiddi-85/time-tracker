@@ -20,7 +20,7 @@ export default function App() {
   const [theme, setTheme] = useState("light");
   const [recordId, setRecordId] = useState(localStorage.getItem("recordId") || "");
 
-  // Timer-Anzeige
+  // ⏱ Timer-Anzeige
   useEffect(() => {
     let id;
     if (startTime) {
@@ -33,7 +33,7 @@ export default function App() {
     return () => clearInterval(id);
   }, [startTime]);
 
-  // Lokale Speicherung
+  // 💾 Lokale Speicherung
   useEffect(() => {
     localStorage.setItem("level1", level1);
   }, [level1]);
@@ -48,14 +48,14 @@ export default function App() {
     return `${h}:${m}:${sec}`;
   };
 
-  // ▶️ Start
+  // ▶️ START
   const handleStart = async () => {
     if (startTime) return;
     const start = new Date();
     setStartTime(start);
     setStatus("Sende Startdaten …");
 
-    // Letzte Projekte speichern
+    // Kürzlich verwendete Projekte speichern
     if (level3 && level3.trim().length > 0) {
       setRecentProjects((prev) => {
         const cleaned = level3.trim();
@@ -78,6 +78,7 @@ export default function App() {
 
     try {
       if (!N8N_URL) throw new Error("Keine Webhook-URL gesetzt");
+
       const res = await fetch(N8N_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -97,37 +98,33 @@ export default function App() {
       }
 
       console.log("Antwort vom n8n:", data);
-      if (data.recordId) {
-     console.log("Antwort vom n8n:", data);
 
-let recordIdFromN8n = null;
+      // 🧠 ID-Logik
+      let recordIdFromN8n = null;
+      if (Array.isArray(data) && data.length > 0 && data[0].id) {
+        recordIdFromN8n = data[0].id;
+      } else if (data.recordId) {
+        recordIdFromN8n = data.recordId;
+      } else if (data.id) {
+        recordIdFromN8n = data.id;
+      }
 
-// Prüfe, ob n8n ein Array zurückgibt
-if (Array.isArray(data) && data.length > 0 && data[0].id) {
-  recordIdFromN8n = data[0].id;
-} else if (data.recordId) {
-  recordIdFromN8n = data.recordId;
-} else if (data.id) {
-  recordIdFromN8n = data.id;
-}
-
-if (recordIdFromN8n) {
-  setRecordId(recordIdFromN8n);
-  localStorage.setItem('recordId', recordIdFromN8n);
-  setStatus(`✅ Neue Zeiterfassung gestartet (ID: ${recordIdFromN8n})`);
-  console.log("Record-ID gespeichert:", recordIdFromN8n);
-} else {
-  setStatus("⚠️ Keine Record-ID empfangen");
-  console.warn("n8n hat keine ID geliefert, data=", data);
-}
-
+      if (recordIdFromN8n) {
+        setRecordId(recordIdFromN8n);
+        localStorage.setItem("recordId", recordIdFromN8n);
+        setStatus(`✅ Neue Zeiterfassung gestartet (ID: ${recordIdFromN8n})`);
+        console.log("Record-ID gespeichert:", recordIdFromN8n);
+      } else {
+        setStatus("⚠️ Keine Record-ID empfangen");
+        console.warn("n8n hat keine ID geliefert, data=", data);
+      }
     } catch (e) {
       console.error("Fehler beim Start:", e);
       setStatus("Fehler beim Start senden ❌");
     }
   };
 
-  // ⏹ Stop
+  // ⏹ STOP
   const handleStop = async () => {
     if (!startTime) return;
     if (!N8N_URL) {
@@ -168,14 +165,14 @@ if (recordIdFromN8n) {
       setRecordId("");
       setLevel3("");
     } catch (e) {
-      console.error(e);
+      console.error("Fehler beim Stop senden:", e);
       setStatus("Fehler beim Stop senden ❌");
     } finally {
       setStartTime(null);
     }
   };
 
-  // 🔄 Reset
+  // 🔄 RESET
   const reset = () => {
     setLevel1("");
     setLevel2("");
@@ -248,7 +245,7 @@ if (recordIdFromN8n) {
           </label>
 
           <label className="block text-sm">
-            <span className="block mb-1">Ebene 3 (Projekte / Freitext)</span>
+            <span className="block mb-1">Ebene 3 (Projekt / Freitext)</span>
             <input
               list="recentProjects"
               type="text"
@@ -294,9 +291,7 @@ if (recordIdFromN8n) {
           </button>
         </section>
 
-        {status && (
-          <p className="text-center mt-4 text-sm opacity-90">{status}</p>
-        )}
+        {status && <p className="text-center mt-4 text-sm opacity-90">{status}</p>}
 
         {recordId && (
           <p className="text-center text-xs text-gray-500 mt-1">
@@ -306,7 +301,7 @@ if (recordIdFromN8n) {
 
         <footer className="mt-6 text-xs text-center opacity-70">
           <p>
-            Gesendet an: <code>VITE_N8N_WEBHOOK_URL</code> (per 
+            Gesendet an: <code>VITE_N8N_WEBHOOK_URL</code> (per{" "}
             <code>.env.local</code>)
           </p>
         </footer>
