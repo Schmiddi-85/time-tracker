@@ -98,13 +98,29 @@ export default function App() {
 
       console.log("Antwort vom n8n:", data);
       if (data.recordId) {
-        setRecordId(data.recordId);
-        localStorage.setItem("recordId", data.recordId);
-        console.log("Record-ID gespeichert:", data.recordId);
-        setStatus(`✅ Neue Zeiterfassung gestartet (ID: ${data.recordId})`);
-      } else {
-        setStatus("⚠️ Keine Record-ID empfangen");
-      }
+     console.log("Antwort vom n8n:", data);
+
+let recordIdFromN8n = null;
+
+// Prüfe, ob n8n ein Array zurückgibt
+if (Array.isArray(data) && data.length > 0 && data[0].id) {
+  recordIdFromN8n = data[0].id;
+} else if (data.recordId) {
+  recordIdFromN8n = data.recordId;
+} else if (data.id) {
+  recordIdFromN8n = data.id;
+}
+
+if (recordIdFromN8n) {
+  setRecordId(recordIdFromN8n);
+  localStorage.setItem('recordId', recordIdFromN8n);
+  setStatus(`✅ Neue Zeiterfassung gestartet (ID: ${recordIdFromN8n})`);
+  console.log("Record-ID gespeichert:", recordIdFromN8n);
+} else {
+  setStatus("⚠️ Keine Record-ID empfangen");
+  console.warn("n8n hat keine ID geliefert, data=", data);
+}
+
     } catch (e) {
       console.error("Fehler beim Start:", e);
       setStatus("Fehler beim Start senden ❌");
