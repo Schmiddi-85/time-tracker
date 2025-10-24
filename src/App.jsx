@@ -45,7 +45,7 @@ export default function App() {
   useEffect(() => {
     const checkActiveSession = async () => {
       try {
-        const res = await fetch("https://michaelschmid.app.n8n.cloud/webhook/get-active-session");
+        const res = await fetch("ttps://michaelschmid.app.n8n.cloud/webhook-test/get-active-session");h
         if (!res.ok) throw new Error("Fehler beim Abrufen der aktiven Session");
         const data = await res.json();
         console.log("Antwort von get-active-session:", data);
