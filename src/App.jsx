@@ -41,6 +41,35 @@ export default function App() {
     localStorage.setItem("level2", level2);
   }, [level2]);
 
+  // 🔍 Prüfe beim Laden, ob aktive Session läuft
+  useEffect(() => {
+    const checkActiveSession = async () => {
+      try {
+        const res = await fetch("https://michaelschmid.app.n8n.cloud/webhook/get-active-session");
+        if (!res.ok) throw new Error("Fehler beim Abrufen der aktiven Session");
+        const data = await res.json();
+        console.log("Antwort von get-active-session:", data);
+
+        if (data.active) {
+          // Session übernehmen
+          setLevel1(data.level1 || "");
+          setLevel2(data.level2 || "");
+          setLevel3(data.level3 || "");
+          setRecordId(data.id || "");
+          localStorage.setItem("recordId", data.id || "");
+          if (data.start) setStartTime(new Date(data.start));
+          setStatus(`⏱ Aktive Session übernommen (${data.level3 || "ohne Projekt"})`);
+        } else {
+          console.log("Keine aktive Session gefunden.");
+        }
+      } catch (e) {
+        console.error("Fehler beim Prüfen aktiver Session:", e);
+      }
+    };
+
+    checkActiveSession();
+  }, []);
+
   const format = (s) => {
     const h = String(Math.floor(s / 3600)).padStart(2, "0");
     const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
