@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 
 const N8N_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
+// Aktive Session (von dir vorgegeben – n8n Test-Webhook)
+const ACTIVE_SESSION_URL = "https://michaelschmid.app.n8n.cloud/webhook-test/get-active-session";
 
 function classNames(...arr) {
   return arr.filter(Boolean).join(" ");
@@ -41,33 +43,56 @@ export default function App() {
     localStorage.setItem("level2", level2);
   }, [level2]);
 
-  // 🔍 Prüfe beim Laden, ob aktive Session läuft
+  // 🔍 Beim Laden: aktive Session aus n8n übernehmen (TEST-Webhook)
   useEffect(() => {
     const checkActiveSession = async () => {
       try {
-        const res = await fetch("ttps://michaelschmid.app.n8n.cloud/webhook-test/get-active-session");h
-        if (!res.ok) throw new Error("Fehler beim Abrufen der aktiven Session");
-        const data = await res.json();
-        console.log("Antwort von get-active-session:", data);
+        setStatus((s) => s || "Prüfe aktive Session …");
+        const res = await fetch(ACTIVE_SESSION_URL, { method: "GET" });
+
+        // n8n webhook-test antwortet nur, wenn der Workflow auf "Listen/Execute" steht
+        if (!res.ok) {
+          setStatus(
+            "Keine Antwort vom Test-Webhook. Ist der n8n-Workflow auf 'Execute/Listen'?"
+          );
+          console.warn("get-active-session HTTP Status:", res.status);
+          return;
+        }
+
+        const text = await res.text();
+        console.log("get-active-session raw:", text);
+
+        let data = {};
+        try {
+          data = JSON.parse(text);
+        } catch (err) {
+          console.error("get-active-session: keine gültige JSON-Antwort:", err);
+          setStatus("❌ Ungültige Antwort vom Test-Webhook");
+          return;
+        }
+
+        console.log("get-active-session parsed:", data);
 
         if (data.active) {
-          // Session übernehmen
           setLevel1(data.level1 || "");
           setLevel2(data.level2 || "");
           setLevel3(data.level3 || "");
           setRecordId(data.id || "");
-          localStorage.setItem("recordId", data.id || "");
+          if (data.id) localStorage.setItem("recordId", data.id);
           if (data.start) setStartTime(new Date(data.start));
           setStatus(`⏱ Aktive Session übernommen (${data.level3 || "ohne Projekt"})`);
         } else {
+          if (!recordId) setStatus(""); // nur leeren, wenn wir nicht bereits eine Session haben
           console.log("Keine aktive Session gefunden.");
         }
       } catch (e) {
         console.error("Fehler beim Prüfen aktiver Session:", e);
+        setStatus("Fehler beim Prüfen aktiver Session");
       }
     };
 
     checkActiveSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const format = (s) => {
@@ -115,7 +140,7 @@ export default function App() {
       });
 
       const rawText = await res.text();
-      console.log("Roh-Antwort:", rawText);
+      console.log("Start Roh-Antwort:", rawText);
 
       let data;
       try {
@@ -126,9 +151,9 @@ export default function App() {
         return;
       }
 
-      console.log("Antwort vom n8n:", data);
+      console.log("Antwort vom n8n (Start):", data);
 
-      // 🧠 ID-Logik
+      // 🧠 ID-Logik (Array- oder Objektantwort)
       let recordIdFromN8n = null;
       if (Array.isArray(data) && data.length > 0 && data[0].id) {
         recordIdFromN8n = data[0].id;
@@ -185,7 +210,7 @@ export default function App() {
       });
 
       const text = await res.text();
-      console.log("Roh-Antwort (Stop):", text);
+      console.log("Stop Roh-Antwort:", text);
       const data = JSON.parse(text);
       console.log("Antwort vom n8n (Stop):", data);
 
