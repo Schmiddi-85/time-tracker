@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 
-// Test-Webhooks
-const N8N_URL = "https://michaelschmid.app.n8n.cloud/webhook-test/080807d6-ddf1-4be5-b70f-89df3ed959bd"; // Start/Stop
-const N8N_GET_ACTIVE = "https://michaelschmid.app.n8n.cloud/webhook-test/get-active-session"; // Aktive Session abfragen
+const N8N_URL = "https://michaelschmid.app.n8n.cloud/webhook-test/080807d6-ddf1-4be5-b70f-89df3ed959bd";
+const N8N_GET_SESSION = "https://michaelschmid.app.n8n.cloud/webhook-test/get-active-session";
 
 function classNames(...arr) {
   return arr.filter(Boolean).join(" ");
@@ -18,11 +17,11 @@ export default function App() {
 
   const [startTime, setStartTime] = useState(null);
   const [elapsed, setElapsed] = useState(0);
-  const [status, setStatus] = useState("⏳ Lade Status …");
+  const [status, setStatus] = useState("");
   const [theme, setTheme] = useState("light");
   const [recordId, setRecordId] = useState(localStorage.getItem("recordId") || "");
 
-  // ⏱ Timer-Anzeige
+  // Timer
   useEffect(() => {
     let id;
     if (startTime) {
@@ -35,63 +34,48 @@ export default function App() {
     return () => clearInterval(id);
   }, [startTime]);
 
-  // 💾 Lokale Speicherung
-  useEffect(() => {
-    localStorage.setItem("level1", level1);
-  }, [level1]);
-  useEffect(() => {
-    localStorage.setItem("level2", level2);
-  }, [level2]);
+  // Local Storage
+  useEffect(() => localStorage.setItem("level1", level1), [level1]);
+  useEffect(() => localStorage.setItem("level2", level2), [level2]);
 
-  // 📡 Beim Laden prüfen, ob aktive Session vorhanden ist
-  useEffect(() => {
-    const checkActiveSession = async () => {
-      try {
-        const res = await fetch(N8N_GET_ACTIVE);
-        const text = await res.text();
-        console.log("Antwort get-active-session (roh):", text);
-
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch {
-          setStatus("❌ Antwort konnte nicht gelesen werden");
-          return;
-        }
-
-        console.log("Antwort get-active-session:", data);
-
-        // Prüfe mögliche Felder (flexibel)
-        const isRunning = data.isRunning || data.active;
-        const recId = data.recordId || data.id || data.fields?.id;
-        const start = data["Start Time"] || data.start || data.fields?.["Start Time"];
-
-        if (isRunning && recId && start) {
-          setRecordId(recId);
-          localStorage.setItem("recordId", recId);
-          setStartTime(new Date(start));
-          setStatus("✅ Aktive Session gefunden");
-        } else {
-          setRecordId("");
-          localStorage.removeItem("recordId");
-          setStartTime(null);
-          setStatus("Keine aktive Session gefunden");
-        }
-      } catch (err) {
-        console.error("Fehler beim Abrufen der Session:", err);
-        setStatus("⚠️ Keine Verbindung zum Server");
-      }
-    };
-
-    checkActiveSession();
-  }, []);
-
+  // Timer formatieren
   const format = (s) => {
+    if (!s || isNaN(s)) return "00:00:00";
     const h = String(Math.floor(s / 3600)).padStart(2, "0");
     const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
     const sec = String(s % 60).padStart(2, "0");
     return `${h}:${m}:${sec}`;
   };
+
+  // 🚀 Beim Starten prüfen, ob aktive Session vorhanden
+  useEffect(() => {
+    const checkActiveSession = async () => {
+      try {
+        const res = await fetch(N8N_GET_SESSION);
+        const data = await res.json();
+        console.log("Antwort von get-active-session:", data);
+
+        if (data.isRunning) {
+          setStatus("✅ Aktive Session gefunden");
+          setRecordId(data.id);
+          localStorage.setItem("recordId", data.id);
+          if (data.startTime) setStartTime(new Date(data.startTime));
+          if (data.level1) setLevel1(data.level1);
+          if (data.level2) setLevel2(data.level2);
+          if (data.level3) setLevel3(data.level3);
+        } else {
+          setStatus("ℹ️ Keine aktive Session gefunden");
+          setRecordId("");
+          localStorage.removeItem("recordId");
+          setStartTime(null);
+        }
+      } catch (err) {
+        console.error("Fehler beim Abrufen der Session:", err);
+        setStatus("❌ Fehler bei Session-Abfrage");
+      }
+    };
+    checkActiveSession();
+  }, []);
 
   // ▶️ START
   const handleStart = async () => {
@@ -127,34 +111,27 @@ export default function App() {
         body: JSON.stringify(payload),
       });
 
-      const rawText = await res.text();
-      console.log("Roh-Antwort:", rawText);
+      const data = await res.json();
+      console.log("Antwort vom n8n (Start):", data);
 
-      let data;
-      try {
-        data = JSON.parse(rawText);
-      } catch {
-        setStatus("⚠️ Ungültige Antwort vom Server");
-        return;
-      }
-
-      const recordIdFromN8n = data.recordId || data.id || (Array.isArray(data) && data[0]?.id);
+      const recordIdFromN8n = data.id || data.recordId;
       if (recordIdFromN8n) {
         setRecordId(recordIdFromN8n);
         localStorage.setItem("recordId", recordIdFromN8n);
-        setStatus(`✅ Neue Zeiterfassung gestartet (${recordIdFromN8n})`);
+        setStatus(`✅ Zeiterfassung gestartet (ID: ${recordIdFromN8n})`);
       } else {
         setStatus("⚠️ Keine Record-ID empfangen");
       }
     } catch (e) {
-      console.error("Fehler beim Start:", e);
-      setStatus("Fehler beim Start senden ❌");
+      console.error("Fehler beim Start senden:", e);
+      setStatus("❌ Fehler beim Start senden");
     }
   };
 
   // ⏹ STOP
   const handleStop = async () => {
     if (!startTime) return;
+
     const end = new Date();
     const recordIdStored = localStorage.getItem("recordId");
 
@@ -177,19 +154,11 @@ export default function App() {
         body: JSON.stringify(payload),
       });
 
-      let data = {};
-      try {
-        data = await res.json();
-      } catch {
-        console.warn("Keine JSON-Antwort beim Stop");
-      }
-
-      console.log("Antwort (Stop):", data);
+      await res.text();
       setStatus("✅ Zeiterfassung gestoppt");
+      setStartTime(null);
       localStorage.removeItem("recordId");
       setRecordId("");
-      setStartTime(null);
-      setLevel3("");
     } catch (e) {
       console.error("Fehler beim Stop senden:", e);
       setStatus("❌ Fehler beim Stop senden");
@@ -205,9 +174,7 @@ export default function App() {
     setElapsed(0);
     setStatus("");
     setRecordId("");
-    localStorage.removeItem("level1");
-    localStorage.removeItem("level2");
-    localStorage.removeItem("recordId");
+    localStorage.clear();
   };
 
   return (
@@ -229,12 +196,7 @@ export default function App() {
           <h1 className="text-2xl font-bold">⏱ Time-Tracker (Test)</h1>
           <button
             onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-            className={classNames(
-              "px-3 py-1 rounded-lg text-sm border",
-              theme === "light"
-                ? "bg-gray-50 hover:bg-gray-100"
-                : "bg-zinc-700 hover:bg-zinc-600 border-zinc-600"
-            )}
+            className="px-3 py-1 rounded-lg text-sm border"
           >
             {theme === "light" ? "Dunkel" : "Hell"}
           </button>
@@ -295,14 +257,14 @@ export default function App() {
           {!startTime ? (
             <button
               onClick={handleStart}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 active:scale-95 transition"
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
             >
               ▶️ Start
             </button>
           ) : (
             <button
               onClick={handleStop}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 active:scale-95 transition"
+              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
             >
               ⏹ Stop
             </button>
@@ -324,10 +286,7 @@ export default function App() {
         )}
 
         <footer className="mt-6 text-xs text-center opacity-70">
-          <p>
-            Test-Webhooks aktiv →{" "}
-            <code>get-active-session</code> / <code>080807d6-ddf1</code>
-          </p>
+          <p>Test-Webhooks aktiv → <code>get-active-session / 080807d6-ddf1</code></p>
         </footer>
       </div>
     </div>
