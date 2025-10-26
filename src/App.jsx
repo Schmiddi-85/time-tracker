@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
-const N8N_URL = "https://michaelschmid.app.n8n.cloud/webhook-test/080807d6-ddf1-4be5-b70f-89df3ed959bd";
-const N8N_GET_SESSION = "https://michaelschmid.app.n8n.cloud/webhook-test/get-active-session";
+const N8N_URL = "https://michaelschmid.app.n8n.cloud/webhook/080807d6-ddf1-4be5-b70f-89df3ed959bd";
+const N8N_GET_SESSION = "https://michaelschmid.app.n8n.cloud/webhook/get-active-session";
 
 function classNames(...arr) {
   return arr.filter(Boolean).join(" ");
@@ -209,7 +209,7 @@ export default function App() {
         )}
       >
         <header className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">⏱ Time-Tracker (Test)</h1>
+          <h1 className="text-2xl font-bold">⏱ Time-Tracker</h1>
           <button
             onClick={() => setTheme(theme === "light" ? "dark" : "light")}
             className="px-3 py-1 rounded-lg text-sm border"
