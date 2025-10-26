@@ -21,7 +21,7 @@ export default function App() {
   const [theme, setTheme] = useState("light");
   const [recordId, setRecordId] = useState(localStorage.getItem("recordId") || "");
 
-  // Timer
+  // Timer-Logik
   useEffect(() => {
     let id;
     if (startTime) {
@@ -38,7 +38,6 @@ export default function App() {
   useEffect(() => localStorage.setItem("level1", level1), [level1]);
   useEffect(() => localStorage.setItem("level2", level2), [level2]);
 
-  // Timer formatieren
   const format = (s) => {
     if (!s || isNaN(s)) return "00:00:00";
     const h = String(Math.floor(s / 3600)).padStart(2, "0");
@@ -47,7 +46,7 @@ export default function App() {
     return `${h}:${m}:${sec}`;
   };
 
-  // 🚀 Beim Starten prüfen, ob aktive Session vorhanden
+  // 🧠 Beim Laden: aktive Session prüfen
   useEffect(() => {
     const checkActiveSession = async () => {
       try {
@@ -59,15 +58,31 @@ export default function App() {
           setStatus("✅ Aktive Session gefunden");
           setRecordId(data.id);
           localStorage.setItem("recordId", data.id);
-          if (data.startTime) setStartTime(new Date(data.startTime));
+
+          // Verschiedene Schreibweisen von Startzeit erkennen
+          const start =
+            data.startTime ||
+            data["Start Time"] ||
+            data.start_time ||
+            data.fields?.["Start Time"];
+
+          if (start) {
+            setStartTime(new Date(start));
+          }
+
           if (data.level1) setLevel1(data.level1);
           if (data.level2) setLevel2(data.level2);
           if (data.level3) setLevel3(data.level3);
         } else {
+          // Keine Session → alles zurücksetzen
           setStatus("ℹ️ Keine aktive Session gefunden");
           setRecordId("");
-          localStorage.removeItem("recordId");
           setStartTime(null);
+          setElapsed(0);
+          setLevel1("");
+          setLevel2("");
+          setLevel3("");
+          localStorage.removeItem("recordId");
         }
       } catch (err) {
         console.error("Fehler beim Abrufen der Session:", err);
@@ -159,6 +174,7 @@ export default function App() {
       setStartTime(null);
       localStorage.removeItem("recordId");
       setRecordId("");
+      setElapsed(0);
     } catch (e) {
       console.error("Fehler beim Stop senden:", e);
       setStatus("❌ Fehler beim Stop senden");
