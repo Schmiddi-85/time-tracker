@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-const N8N_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
-// Aktive Session (von dir vorgegeben – n8n Test-Webhook)
-const ACTIVE_SESSION_URL = "https://michaelschmid.app.n8n.cloud/webhook-test/get-active-session";
+// 🌐 Live-Webhooks
+const N8N_URL = "https://michaelschmid.app.n8n.cloud/webhook/080807d6-ddf1-4be5-b70f-89df3ed959bd";
+const N8N_ACTIVE_SESSION_URL = "https://michaelschmid.app.n8n.cloud/webhook/get-active-session";
 
 function classNames(...arr) {
   return arr.filter(Boolean).join(" ");
@@ -18,16 +18,16 @@ export default function App() {
 
   const [startTime, setStartTime] = useState(null);
   const [elapsed, setElapsed] = useState(0);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState("Überprüfe aktive Session …");
   const [theme, setTheme] = useState("light");
   const [recordId, setRecordId] = useState(localStorage.getItem("recordId") || "");
 
-  // ⏱ Timer-Anzeige
+  // ⏱ Timeranzeige
   useEffect(() => {
     let id;
     if (startTime) {
       id = setInterval(() => {
-        setElapsed(Math.floor((Date.now() - startTime) / 1000));
+        setElapsed(Math.floor((Date.now() - new Date(startTime)) / 1000));
       }, 1000);
     } else {
       setElapsed(0);
@@ -36,65 +36,38 @@ export default function App() {
   }, [startTime]);
 
   // 💾 Lokale Speicherung
-  useEffect(() => {
-    localStorage.setItem("level1", level1);
-  }, [level1]);
-  useEffect(() => {
-    localStorage.setItem("level2", level2);
-  }, [level2]);
+  useEffect(() => localStorage.setItem("level1", level1), [level1]);
+  useEffect(() => localStorage.setItem("level2", level2), [level2]);
 
-  // 🔍 Beim Laden: aktive Session aus n8n übernehmen (TEST-Webhook)
+  // 🔄 Beim Laden: aktive Session prüfen
   useEffect(() => {
     const checkActiveSession = async () => {
       try {
-        setStatus((s) => s || "Prüfe aktive Session …");
-        const res = await fetch(ACTIVE_SESSION_URL, { method: "GET" });
+        const res = await fetch(N8N_ACTIVE_SESSION_URL);
+        const data = await res.json();
+        console.log("Antwort von get-active-session:", data);
 
-        // n8n webhook-test antwortet nur, wenn der Workflow auf "Listen/Execute" steht
-        if (!res.ok) {
-          setStatus(
-            "Keine Antwort vom Test-Webhook. Ist der n8n-Workflow auf 'Execute/Listen'?"
-          );
-          console.warn("get-active-session HTTP Status:", res.status);
-          return;
-        }
-
-        const text = await res.text();
-        console.log("get-active-session raw:", text);
-
-        let data = {};
-        try {
-          data = JSON.parse(text);
-        } catch (err) {
-          console.error("get-active-session: keine gültige JSON-Antwort:", err);
-          setStatus("❌ Ungültige Antwort vom Test-Webhook");
-          return;
-        }
-
-        console.log("get-active-session parsed:", data);
-
-        if (data.active) {
-          setLevel1(data.level1 || "");
-          setLevel2(data.level2 || "");
-          setLevel3(data.level3 || "");
-          setRecordId(data.id || "");
-          if (data.id) localStorage.setItem("recordId", data.id);
-          if (data.start) setStartTime(new Date(data.start));
-          setStatus(`⏱ Aktive Session übernommen (${data.level3 || "ohne Projekt"})`);
+        if (data.active === true && data.recordId && data["Start Time"]) {
+          const startDate = new Date(data["Start Time"]);
+          setRecordId(data.recordId);
+          localStorage.setItem("recordId", data.recordId);
+          setStartTime(startDate);
+          setStatus("✅ Aktive Session übernommen");
         } else {
-          if (!recordId) setStatus(""); // nur leeren, wenn wir nicht bereits eine Session haben
-          console.log("Keine aktive Session gefunden.");
+          setRecordId("");
+          localStorage.removeItem("recordId");
+          setStartTime(null);
+          setStatus("Keine aktive Session gefunden.");
         }
-      } catch (e) {
-        console.error("Fehler beim Prüfen aktiver Session:", e);
-        setStatus("Fehler beim Prüfen aktiver Session");
+      } catch (err) {
+        console.error("Fehler beim Abrufen der aktiven Session:", err);
+        setStatus("⚠️ Fehler bei der Session-Abfrage");
       }
     };
-
     checkActiveSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ⏱ Zeitformatierer
   const format = (s) => {
     const h = String(Math.floor(s / 3600)).padStart(2, "0");
     const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
@@ -109,7 +82,6 @@ export default function App() {
     setStartTime(start);
     setStatus("Sende Startdaten …");
 
-    // Kürzlich verwendete Projekte speichern
     if (level3 && level3.trim().length > 0) {
       setRecentProjects((prev) => {
         const cleaned = level3.trim();
@@ -131,46 +103,24 @@ export default function App() {
     };
 
     try {
-      if (!N8N_URL) throw new Error("Keine Webhook-URL gesetzt");
-
       const res = await fetch(N8N_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const rawText = await res.text();
-      console.log("Start Roh-Antwort:", rawText);
+      const data = await res.json();
+      console.log("Antwort (Start):", data);
 
-      let data;
-      try {
-        data = JSON.parse(rawText);
-      } catch (err) {
-        console.error("Antwort ist kein gültiges JSON:", err);
-        setStatus("❌ Ungültige Antwort vom Server");
-        return;
-      }
-
-      console.log("Antwort vom n8n (Start):", data);
-
-      // 🧠 ID-Logik (Array- oder Objektantwort)
-      let recordIdFromN8n = null;
-      if (Array.isArray(data) && data.length > 0 && data[0].id) {
-        recordIdFromN8n = data[0].id;
-      } else if (data.recordId) {
-        recordIdFromN8n = data.recordId;
-      } else if (data.id) {
-        recordIdFromN8n = data.id;
-      }
+      const recordIdFromN8n =
+        data.recordId || data.id || (Array.isArray(data) && data[0]?.id) || null;
 
       if (recordIdFromN8n) {
         setRecordId(recordIdFromN8n);
         localStorage.setItem("recordId", recordIdFromN8n);
         setStatus(`✅ Neue Zeiterfassung gestartet (ID: ${recordIdFromN8n})`);
-        console.log("Record-ID gespeichert:", recordIdFromN8n);
       } else {
         setStatus("⚠️ Keine Record-ID empfangen");
-        console.warn("n8n hat keine ID geliefert, data=", data);
       }
     } catch (e) {
       console.error("Fehler beim Start:", e);
@@ -181,11 +131,6 @@ export default function App() {
   // ⏹ STOP
   const handleStop = async () => {
     if (!startTime) return;
-    if (!N8N_URL) {
-      setStatus("Kein Webhook konfiguriert. Bitte .env.local prüfen.");
-      setStartTime(null);
-      return;
-    }
 
     const end = new Date();
     const recordIdStored = localStorage.getItem("recordId");
@@ -209,20 +154,16 @@ export default function App() {
         body: JSON.stringify(payload),
       });
 
-      const text = await res.text();
-      console.log("Stop Roh-Antwort:", text);
-      const data = JSON.parse(text);
-      console.log("Antwort vom n8n (Stop):", data);
-
+      const data = await res.json();
+      console.log("Antwort (Stop):", data);
       setStatus("✅ Zeiterfassung gestoppt und gespeichert");
       localStorage.removeItem("recordId");
       setRecordId("");
       setLevel3("");
+      setStartTime(null);
     } catch (e) {
       console.error("Fehler beim Stop senden:", e);
       setStatus("Fehler beim Stop senden ❌");
-    } finally {
-      setStartTime(null);
     }
   };
 
@@ -233,11 +174,9 @@ export default function App() {
     setLevel3("");
     setStartTime(null);
     setElapsed(0);
-    setStatus("");
+    setStatus("Zurückgesetzt");
     setRecordId("");
-    localStorage.removeItem("level1");
-    localStorage.removeItem("level2");
-    localStorage.removeItem("recordId");
+    localStorage.clear();
   };
 
   return (
@@ -345,7 +284,9 @@ export default function App() {
           </button>
         </section>
 
-        {status && <p className="text-center mt-4 text-sm opacity-90">{status}</p>}
+        {status && (
+          <p className="text-center mt-4 text-sm opacity-90">{status}</p>
+        )}
 
         {recordId && (
           <p className="text-center text-xs text-gray-500 mt-1">
@@ -355,8 +296,7 @@ export default function App() {
 
         <footer className="mt-6 text-xs text-center opacity-70">
           <p>
-            Gesendet an: <code>VITE_N8N_WEBHOOK_URL</code> (per{" "}
-            <code>.env.local</code>)
+            Gesendet an: <code>{N8N_URL}</code>
           </p>
         </footer>
       </div>
